@@ -213,19 +213,33 @@ function nav(onNext, nextText, showBack = true) {
 
 function setMsg(text) { const m = document.getElementById('msg'); if (m) m.textContent = text || ''; }
 
+// Personal links carry the participant ID (?p=12), so nobody has to remember it.
+const LINK_PID = (() => {
+  try {
+    const v = toAsciiDigits(new URLSearchParams(location.search).get('p') || '').trim();
+    return /^[0-9]{1,6}$/.test(v) ? v : '';
+  } catch (e) { return ''; }
+})();
+
 function renderIntro() {
+  if (LINK_PID) state.pid = LINK_PID;
   const pid = el('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', id: 'pid', maxlength: '6' });
   pid.value = state.pid;
   pid.oninput = () => { state.pid = toAsciiDigits(pid.value).trim(); saveDraft(); };
+  const idCard = LINK_PID
+    ? el('div', { class: 'card' },
+        el('div', { class: 'q', text: '你的受試者編號：' + LINK_PID }),
+        el('p', { class: 'soft', text: '這是你的專屬連結，已經幫你帶入編號。如果編號不對，請告訴研究人員。' }))
+    : el('div', { class: 'card' },
+        el('label', { class: 'field', for: 'pid', text: '受試者編號' }),
+        el('p', { class: 'soft', text: '請填研究人員給你的編號（只有數字），和 App 裡的編號相同。忘記編號的話，請直接問研究人員。' }),
+        pid);
   form.append(
     el('div', { class: 'card' },
       el('p', { text: '謝謝你參加 WindingDown 研究！這份問卷有三個量表和幾題手機使用情況，共 36 題，大約 6 分鐘。' }),
       el('p', { text: '答案沒有對錯，請依照你平常的實際狀況作答。' }),
       el('p', { class: 'soft', text: '如果你已經在 App 裡填過這些量表，就不需要再填這份。我們只記錄你的受試者編號，不收集姓名或 email。' })),
-    el('div', { class: 'card' },
-      el('label', { class: 'field', for: 'pid', text: '受試者編號' }),
-      el('p', { class: 'soft', text: '請填研究人員給你的編號（只有數字），和 App 裡的編號相同。' }),
-      pid),
+    idCard,
     ...nav(() => {
       if (!/^[0-9]{1,6}$/.test(state.pid)) { setMsg('請填受試者編號（只有數字）'); pid.focus(); return; }
       go(1);
