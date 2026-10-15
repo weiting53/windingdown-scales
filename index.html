@@ -409,7 +409,10 @@ async function submit() {
     go(5);
   } catch (e) {
     btn.disabled = false; btn.textContent = '再試一次';
-    setMsg('送出失敗（' + e.message + '）。你的答案還在，請檢查網路後再按一次。');
+    const offline = e instanceof TypeError;  // fetch throws TypeError when the network is down
+    setMsg(offline
+      ? '送出失敗：連不上網路。你的答案還在，請確認網路後再按一次。'
+      : '送出失敗（' + e.message + '）。你的答案還在，請稍後再試；一直失敗的話請截圖告訴研究人員。');
   }
 }
 
