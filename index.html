@@ -12,8 +12,6 @@
     --ink-soft: #5a4a78;
     --card: #fbf8ff;
     --yellow: #f6c945;
-    --pink: #f3a8c0;
-    --mint: #8fd0c4;
     --error: #b3261e;
   }
   * { box-sizing: border-box; }
@@ -25,11 +23,16 @@
     font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
     line-height: 1.55;
   }
-  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; }
-  h1 { font-size: 1.6rem; margin: 8px 0 4px; font-weight: 900; }
+  main { max-width: 640px; margin: 0 auto; padding: 20px 16px 64px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 1.5rem; margin: 8px 0 4px; font-weight: 900; }
   h2 { font-size: 1.3rem; margin: 0 0 6px; font-weight: 900; }
   p { margin: 0 0 12px; }
   .soft { color: var(--ink-soft); font-size: 0.95rem; }
+  .lang {
+    flex: 0 0 auto; font-size: 0.95rem; font-weight: 800; padding: 8px 14px; min-height: 40px;
+    border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer;
+  }
   .progress { display: flex; gap: 6px; margin: 12px 0 20px; }
   .progress span { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.45); border: 1.5px solid var(--ink); }
   .progress span.on { background: var(--yellow); }
@@ -40,8 +43,10 @@
   .card.missing { border-color: var(--error); box-shadow: 0 0 0 2px var(--error) inset; }
   .q { font-weight: 700; margin-bottom: 10px; }
   .opts { display: grid; gap: 6px; }
+  .opts.n2 { grid-template-columns: repeat(2, 1fr); }
   .opts.n4 { grid-template-columns: repeat(4, 1fr); }
   .opts.n5 { grid-template-columns: repeat(5, 1fr); }
+  .opts.n6 { grid-template-columns: repeat(3, 1fr); }
   .opt input { position: absolute; opacity: 0; pointer-events: none; }
   .opt span {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -59,19 +64,18 @@
   .checks label { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 1rem; }
   .checks input { width: 20px; height: 20px; accent-color: var(--ink); }
   .nav { display: flex; gap: 10px; margin-top: 18px; }
-  button {
+  .nav button {
     flex: 1; font-size: 1.05rem; font-weight: 800; padding: 14px; border-radius: 14px;
     border: 2px solid var(--ink); background: var(--yellow); color: var(--ink); cursor: pointer;
   }
-  button.secondary { background: #fff; flex: 0 0 34%; }
-  button:disabled { opacity: .55; cursor: default; }
+  .nav button.secondary { background: #fff; flex: 0 0 34%; }
+  .nav button:disabled { opacity: .55; cursor: default; }
   .msg { color: var(--error); font-weight: 700; margin-top: 12px; min-height: 1.5em; }
   .done { text-align: center; padding: 40px 8px; }
   .done .big { font-size: 3rem; }
-  [hidden] { display: none !important; }
   /* Phones: one full-width row per option so labels stay on one line and targets are large. */
   @media (max-width: 560px) {
-    .opts.n4, .opts.n5 { grid-template-columns: 1fr; }
+    .opts.n2, .opts.n4, .opts.n5, .opts.n6 { grid-template-columns: 1fr; }
     .opt span {
       flex-direction: row; justify-content: flex-start; gap: 12px;
       min-height: 46px; padding: 8px 14px; font-size: 1rem; text-align: left;
@@ -86,7 +90,10 @@
 </head>
 <body>
 <main>
-  <h1>WindingDown 補填問卷</h1>
+  <header>
+    <h1 id="title"></h1>
+    <button type="button" class="lang" id="lang"></button>
+  </header>
   <div class="progress" id="progress" aria-hidden="true"></div>
   <form id="form" novalidate></form>
 </main>
@@ -97,78 +104,199 @@
 const SUPABASE_URL = 'https://pcettssnalxoiancdwcv.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_WldlVemvmnrcQld0r4n56g_7a5kjgyg';
 const TABLE = 'drift_scale_web';
-const FORM_VERSION = 'web-2026-10-15';
-const DRAFT_KEY = 'wd_scales_draft_v1';
+const FORM_VERSION = 'web-2026-10-16';
+const DRAFT_KEY = 'wd_scales_draft_v2';
 
-// ---------------------------------------------------------------- instruments
-// Item text is identical to the app's res/values/strings.xml; change both together.
+// ---------------------------------------------------------------- text
+// Item text matches the app's res/values(-en)/strings.xml; change both together.
+const UI = {
+  zh: {
+    title: 'WindingDown 補填問卷', switchTo: 'English',
+    intro1: '謝謝你參加 WindingDown 研究！這份問卷有四個量表和幾題手機使用情況，共 45 題，大約 7 分鐘。',
+    intro2: '答案沒有對錯，請依照你平常的實際狀況作答。',
+    introNamed: '如果你已經在 App 裡填過這些量表，就不需要再填這份。名字只用來把問卷對應到你的受試者編號，對應完成後就會刪除，不會出現在研究資料或論文中。',
+    introLinked: '如果你已經在 App 裡填過這些量表，就不需要再填這份。我們只記錄你的受試者編號，不收集姓名或 email。',
+    nameLabel: '你的名字', nameHelp: '請填參加研究時留給研究人員的名字，讓我們把這份問卷對應到你的研究資料。',
+    nameMissing: '請填你的名字',
+    linkedId: '你的受試者編號：', linkedHelp: '這是你的專屬連結，已經幫你帶入編號。如果編號不對，請告訴研究人員。',
+    start: '開始', next: '下一頁', back: '上一頁', submit: '送出', sending: '送出中…', retry: '再試一次',
+    missing: n => '還有 ' + n + ' 題沒有填，已用紅框標出',
+    usageTitle: '最後：手機使用情況',
+    usageHelp: '建議打開手機的「數位健康」（Android）或「螢幕使用時間」（iPhone），看最近一週的每日平均來填。',
+    phone: '平均每天使用手機多久？', social: '平均每天在手機上觀看社群媒體內容多久？',
+    minutesHelp: '請填分鐘數，例如 3 小時 20 分鐘填 200',
+    devices: '你每天例行使用的裝置有哪些？（可複選）',
+    deviceList: ['手機', '平板', '筆電', '桌上型電腦', '電視或串流裝置'], other: '其他（選填）',
+    usageMissing: '請完成標紅的題目（分鐘數 0 到 1440）',
+    doneTitle: '已收到，謝謝你！', doneHelp: '可以關閉這個頁面了。',
+    offline: '送出失敗：連不上網路。你的答案還在，請確認網路後再按一次。',
+    failed: c => '送出失敗（' + c + '）。你的答案還在，請稍後再試；一直失敗的話請截圖告訴研究人員。',
+  },
+  en: {
+    title: 'WindingDown Follow-up Survey', switchTo: '中文',
+    intro1: 'Thank you for taking part in the WindingDown study! This survey has four short scales and a few questions about your phone use: 45 questions, about 7 minutes.',
+    intro2: 'There are no right or wrong answers. Please answer based on how you usually are.',
+    introNamed: 'If you have already filled in these scales in the app, you do not need to do this one. Your name is only used to match this survey to your participant ID; it is deleted once matched and never appears in the research data or any paper.',
+    introLinked: 'If you have already filled in these scales in the app, you do not need to do this one. We only record your participant ID, not your name or email.',
+    nameLabel: 'Your name', nameHelp: 'Please enter the name you gave the researchers when you joined the study, so we can match this survey to your data.',
+    nameMissing: 'Please enter your name',
+    linkedId: 'Your participant ID: ', linkedHelp: 'This is your personal link, so your ID is already filled in. If it looks wrong, please tell the researchers.',
+    start: 'Start', next: 'Next', back: 'Back', submit: 'Submit', sending: 'Sending…', retry: 'Try again',
+    missing: n => n + ' unanswered — marked in red',
+    usageTitle: 'Last: your phone use',
+    usageHelp: 'Tip: open Digital Wellbeing (Android) or Screen Time (iPhone) and use your daily average for the past week.',
+    phone: 'On average, how long do you use your phone each day?', social: 'On average, how long do you spend on social media content on your phone each day?',
+    minutesHelp: 'In minutes, e.g. 3 h 20 min = 200',
+    devices: 'Which devices do you use every day? (choose all that apply)',
+    deviceList: ['Phone', 'Tablet', 'Laptop', 'Desktop computer', 'TV or streaming device'], other: 'Other (optional)',
+    usageMissing: 'Please complete the questions marked in red (0 to 1440 minutes)',
+    doneTitle: 'Received — thank you!', doneHelp: 'You can close this page now.',
+    offline: 'Could not send: no internet connection. Your answers are kept; please check your connection and try again.',
+    failed: c => 'Could not send (' + c + '). Your answers are kept; please try again later, and if it keeps failing send the researchers a screenshot.',
+  },
+};
+
+// Stored device values stay in Chinese regardless of language, so both languages land in the same categories.
+const DEVICE_VALUES = ['手機', '平板', '筆電', '桌上型電腦', '電視或串流裝置'];
+
+const YESNO = { zh: ['是', '否'], en: ['Yes', 'No'] };
+
 const SCALES = [
   {
-    key: 'bscs', title: '第一部分：自我控制量表',
-    help: '以下句子有多像你？依照你平常的樣子作答。',
-    labels: ['完全不像我', '不太像我', '普通', '有點像我', '非常像我'],
-    reverse: [2, 3, 4, 5, 7, 9, 10, 12, 13],
-    items: [
-      '我很擅長抗拒誘惑。',
-      '我很難戒掉壞習慣。',
-      '我很懶惰。',
-      '我會說出不恰當的話。',
-      '只要好玩，我會做一些對自己不好的事。',
-      '我會拒絕對自己不好的事。',
-      '我希望自己能更自律。',
-      '別人會說我非常自律。',
-      '享樂有時會讓我無法把事情做完。',
-      '我很難專心。',
-      '我能有效地朝長期目標努力。',
-      '有時即使知道不對，我還是無法阻止自己去做某件事。',
-      '我常常沒有想清楚各種可能，就直接行動。',
-    ],
+    key: 'bscs', reverse: [2, 3, 4, 5, 7, 9, 10, 12, 13],
+    zh: {
+      title: '第一部分：自我控制量表', help: '以下句子有多像你？依照你平常的樣子作答。',
+      labels: ['完全不像我', '不太像我', '普通', '有點像我', '非常像我'],
+      items: [
+        '我很擅長抗拒誘惑。', '我很難戒掉壞習慣。', '我很懶惰。', '我會說出不恰當的話。',
+        '只要好玩，我會做一些對自己不好的事。', '我會拒絕對自己不好的事。', '我希望自己能更自律。',
+        '別人會說我非常自律。', '享樂有時會讓我無法把事情做完。', '我很難專心。',
+        '我能有效地朝長期目標努力。', '有時即使知道不對，我還是無法阻止自己去做某件事。',
+        '我常常沒有想清楚各種可能，就直接行動。',
+      ],
+    },
+    en: {
+      title: 'Part 1: Self-Control Scale', help: 'How much is each statement like you? Answer for how you usually are.',
+      labels: ['Not at all like me', 'A little like me', 'Somewhat like me', 'Mostly like me', 'Very much like me'],
+      items: [
+        'I am good at resisting temptation.', 'I have a hard time breaking bad habits.', 'I am lazy.',
+        'I say inappropriate things.', 'I do certain things that are bad for me, if they are fun.',
+        'I refuse things that are bad for me.', 'I wish I had more self-discipline.',
+        'People would say that I have iron self-discipline.', 'Pleasure and fun sometimes keep me from getting work done.',
+        'I have trouble concentrating.', 'I am able to work effectively toward long-term goals.',
+        'Sometimes I can\'t stop myself from doing something, even if I know it is wrong.',
+        'I often act without thinking through all the alternatives.',
+      ],
+    },
   },
   {
-    key: 'spaisf', title: '第二部分：手機使用量表',
-    help: '下面是一些有關個人使用智慧型手機的描述，請評估您目前的實際情形是否與句中的描述一致。數字越大，表示句中所描述的情形與目前您實際的情形愈符合。',
-    labels: ['極不符合', '不符合', '符合', '非常符合'],
-    reverse: [],
-    items: [
-      '雖然使用手機對我的日常人際關係造成負面影響，我仍未減少使用手機',
-      '使用手機所花的時間或金錢，常常超過自己本來預定的程度',
-      '我曾試過想花較少的時間在使用手機上，但卻無法做到',
-      '我曾因長時間使用手機而眼睛酸澀，肌肉痠痛，或有其他身體不適',
-      '我習慣睡前使用手機，而且因此減少睡眠時間或睡眠品質變差',
-      '使用智慧型手機對我的學業或工作已造成一些負面的影響',
-      '如果手機突然被沒收，或是突然被限制不能用手機，會覺得很難受',
-      '我只要有一段時間沒有用手機，就會覺得心裡不舒服',
-      '我發現自己使用手機的時間越來越長',
-      '與三個月前比起來，平均而言我每週使用手機的時間比以前增加許多',
-    ],
+    // Self-identified addiction vs habit (Part 1 of Yung-Ju Chang's lab questionnaire). Not summed.
+    key: 'selfid', reverse: [], noTotal: true,
+    zh: {
+      title: '第二部分：手機成癮與習慣自評',
+      help: '我們想了解您對智慧型手機成癮和使用習慣的看法。請根據個人的經驗和觀點回答每個問題，回答沒有標準答案。第 5、6 題請想像：如果專業的臨床醫師來評估您的手機使用情況，他們可能會怎麼看待。您不需要知道正式的「手機成癮」診斷標準，只要根據您自己的感覺猜測即可。',
+      items: [
+        { text: '說到自己手機的使用情況，你是否覺得自己是手機成癮者？', labels: YESNO.zh },
+        { text: '說到自己手機的使用情況，您是否覺得自己是會出於習慣使用手機的人？', labels: YESNO.zh },
+        { text: '目前，我覺得自己對手機上癮了', labels: ['完全不上癮', '一點點上癮', '有些上癮', '非常上癮', '極度上癮'] },
+        { text: '目前，我覺得我使用手機是出於習慣', labels: ['完全不出於習慣', '一點點出於習慣', '有些出於習慣', '非常出於習慣', '極度出於習慣'] },
+        { text: '根據您的猜測，如果您接受專業的臨床醫師評估，您認為自己是否符合「手機成癮」的臨床標準？', labels: YESNO.zh },
+        { text: '根據您的猜測，如果您接受專業的臨床醫師評估，您認為自己被診斷具有「手機成癮」的可能性有多高？（高可能性意味著您很可能會被診斷為成癮，而低可能性則意味著您不太可能被診斷為成癮。）',
+          labels: ['非常低可能性', '低可能性', '一般可能性', '高可能性', '非常高可能性', '我不確定'] },
+      ],
+    },
+    en: {
+      title: 'Part 2: Phone Addiction & Habit Self-Rating',
+      help: 'We would like your view on smartphone addiction and habits. Answer from your own experience; there are no right answers. For items 5 and 6, imagine a professional clinician assessed your phone use. You do not need to know the formal criteria for "smartphone addiction"; just guess based on how you feel.',
+      items: [
+        { text: 'Thinking about your own phone use, do you consider yourself a smartphone addict?', labels: YESNO.en },
+        { text: 'Thinking about your own phone use, do you consider yourself someone who uses their phone out of habit?', labels: YESNO.en },
+        { text: 'Right now, I feel addicted to my phone', labels: ['Not at all addicted', 'Slightly addicted', 'Somewhat addicted', 'Very addicted', 'Extremely addicted'] },
+        { text: 'Right now, I feel I use my phone out of habit', labels: ['Not at all out of habit', 'Slightly out of habit', 'Somewhat out of habit', 'Very much out of habit', 'Extremely out of habit'] },
+        { text: 'If a professional clinician assessed you, would you guess that you meet the clinical criteria for "smartphone addiction"?', labels: YESNO.en },
+        { text: 'If a professional clinician assessed you, how likely do you think you would be diagnosed with "smartphone addiction"? (High likelihood means you would probably be diagnosed; low means you probably would not.)',
+          labels: ['Very unlikely', 'Unlikely', 'Moderately likely', 'Likely', 'Very likely', 'Not sure'] },
+      ],
+    },
   },
   {
-    key: 'fomo', title: '第三部分：人際與資訊量表',
-    help: '以下描述與你的日常經驗有關，請依照每句話符合你實際狀況的程度作答。',
-    labels: ['完全不符合我', '有點符合我', '中等符合我', '很符合我', '非常符合我'],
-    reverse: [],
-    items: [
-      '我擔心別人擁有比我更精彩、更有收穫的經驗。',
-      '我擔心我的朋友擁有比我更精彩、更有收穫的經驗。',
-      '發現朋友們沒有我也玩得很開心時，我會感到擔心。',
-      '不知道朋友們在做什麼時，我會感到焦慮。',
-      '能聽懂朋友之間的「內梗」，對我來說很重要。',
-      '有時候我會懷疑，自己是不是花太多時間在掌握周遭發生的事。',
-      '錯過和朋友見面的機會，會讓我很在意。',
-      '當我玩得很開心時，把細節分享到網路上（例如發限動或更新動態）對我來說很重要。',
-      '錯過已經約好的聚會，會讓我很在意。',
-      '去度假時，我還是會持續關注朋友們在做什麼。',
-    ],
+    key: 'spaisf', reverse: [],
+    zh: {
+      title: '第三部分：手機使用量表',
+      help: '下面是一些有關個人使用智慧型手機的描述，請評估您目前的實際情形是否與句中的描述一致。數字越大，表示句中所描述的情形與目前您實際的情形愈符合。',
+      labels: ['極不符合', '不符合', '符合', '非常符合'],
+      items: [
+        '雖然使用手機對我的日常人際關係造成負面影響，我仍未減少使用手機',
+        '使用手機所花的時間或金錢，常常超過自己本來預定的程度',
+        '我曾試過想花較少的時間在使用手機上，但卻無法做到',
+        '我曾因長時間使用手機而眼睛酸澀，肌肉痠痛，或有其他身體不適',
+        '我習慣睡前使用手機，而且因此減少睡眠時間或睡眠品質變差',
+        '使用智慧型手機對我的學業或工作已造成一些負面的影響',
+        '如果手機突然被沒收，或是突然被限制不能用手機，會覺得很難受',
+        '我只要有一段時間沒有用手機，就會覺得心裡不舒服',
+        '我發現自己使用手機的時間越來越長',
+        '與三個月前比起來，平均而言我每週使用手機的時間比以前增加許多',
+      ],
+    },
+    en: {
+      title: 'Part 3: Smartphone Use Scale',
+      help: 'Below are statements about using a smartphone. Rate how well each one matches your current situation; a higher number means it matches better.',
+      labels: ['Not at all true', 'Not true', 'True', 'Very true'],
+      items: [
+        'Even though using my phone has harmed my everyday relationships, I have not cut down on it',
+        'The time or money I spend on my phone often goes beyond what I had planned',
+        'I have tried to spend less time on my phone but could not',
+        'Long phone use has given me sore eyes, aching muscles, or other physical discomfort',
+        'I usually use my phone before sleep, and it cuts my sleep time or makes my sleep worse',
+        'Using my smartphone has already had some negative effect on my studies or work',
+        'If my phone were suddenly taken away or I were suddenly not allowed to use it, I would feel very uncomfortable',
+        'Whenever I go a while without using my phone, I feel uneasy',
+        'I find that I am spending more and more time on my phone',
+        'Compared with three months ago, on average I now spend much more time on my phone each week',
+      ],
+    },
+  },
+  {
+    key: 'fomo', reverse: [],
+    zh: {
+      title: '第四部分：人際與資訊量表', help: '以下描述與你的日常經驗有關，請依照每句話符合你實際狀況的程度作答。',
+      labels: ['完全不符合我', '有點符合我', '中等符合我', '很符合我', '非常符合我'],
+      items: [
+        '我擔心別人擁有比我更精彩、更有收穫的經驗。', '我擔心我的朋友擁有比我更精彩、更有收穫的經驗。',
+        '發現朋友們沒有我也玩得很開心時，我會感到擔心。', '不知道朋友們在做什麼時，我會感到焦慮。',
+        '能聽懂朋友之間的「內梗」，對我來說很重要。', '有時候我會懷疑，自己是不是花太多時間在掌握周遭發生的事。',
+        '錯過和朋友見面的機會，會讓我很在意。', '當我玩得很開心時，把細節分享到網路上（例如發限動或更新動態）對我來說很重要。',
+        '錯過已經約好的聚會，會讓我很在意。', '去度假時，我還是會持續關注朋友們在做什麼。',
+      ],
+    },
+    en: {
+      title: 'Part 4: Social & Information Scale', help: 'These statements describe everyday experiences. Rate how true each one is of you.',
+      labels: ['Not at all true of me', 'Slightly true of me', 'Moderately true of me', 'Very true of me', 'Extremely true of me'],
+      items: [
+        'I fear others have more rewarding experiences than me.', 'I fear my friends have more rewarding experiences than me.',
+        'I get worried when I find out my friends are having fun without me.', 'I get anxious when I don\'t know what my friends are up to.',
+        'It is important that I understand my friends\' "in jokes".', 'Sometimes, I wonder if I spend too much time keeping up with what is going on.',
+        'It bothers me when I miss an opportunity to meet up with friends.',
+        'When I have a good time it is important for me to share the details online (e.g. updating status).',
+        'When I miss out on a planned get-together it bothers me.', 'When I go on vacation, I continue to keep tabs on what my friends are doing.',
+      ],
+    },
   },
 ];
-const DEVICES = ['手機', '平板', '筆電', '桌上型電腦', '電視或串流裝置'];
 
-// Pages: 0 intro, 1..3 scales, 4 usage, 5 done.
-const PAGE_COUNT = 5;
+// Pages: 0 intro, 1..4 scales, 5 usage, 6 done.
+const USAGE_PAGE = SCALES.length + 1;
+const DONE_PAGE = SCALES.length + 2;
 let page = 0;
-const state = { pid: '', name: '', answers: {}, phone_min: '', social_min: '', devices: [], device_other: '' };
+const state = { lang: 'zh', name: '', answers: {}, phone_min: '', social_min: '', devices: [], device_other: '' };
+const t = () => UI[state.lang];
+const itemText = it => typeof it === 'string' ? it : it.text;
+const itemLabels = (scale, i) => {
+  const it = scale[state.lang].items[i];
+  return typeof it === 'string' ? scale[state.lang].labels : it.labels;
+};
 
-// ---------------------------------------------------------------- draft (per-device convenience only)
+// ---------------------------------------------------------------- draft & language (per-device conveniences only)
 function loadDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -182,9 +310,26 @@ function clearDraft() {
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
 }
 
-// ---------------------------------------------------------------- rendering
+// ---------------------------------------------------------------- helpers
+function toAsciiDigits(s) {
+  // Same normalisation as the app: any Unicode decimal digit -> ASCII.
+  return s.replace(/\p{Nd}/gu, d => {
+    const code = d.codePointAt(0);
+    for (const base of [0x30, 0x0660, 0x06F0, 0x0966, 0xFF10]) if (code >= base && code <= base + 9) return String(code - base);
+    return d;
+  });
+}
+
+// Personal links carry the participant ID (?p=12), so nobody has to remember it.
+const PARAMS = (() => { try { return new URLSearchParams(location.search); } catch (e) { return new Map(); } })();
+const LINK_PID = (() => {
+  const v = toAsciiDigits(PARAMS.get('p') || '').trim();
+  return /^[0-9]{1,6}$/.test(v) ? v : '';
+})();
+
 const form = document.getElementById('form');
 const progress = document.getElementById('progress');
+const langBtn = document.getElementById('lang');
 
 function el(tag, attrs, ...children) {
   const n = document.createElement(tag);
@@ -197,65 +342,64 @@ function el(tag, attrs, ...children) {
   return n;
 }
 
-function renderProgress() {
-  progress.replaceChildren(...Array.from({ length: PAGE_COUNT }, (_, i) =>
-    el('span', { class: i <= page ? 'on' : '' })));
+function renderChrome() {
+  document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant-TW' : 'en';
+  document.title = t().title;
+  document.getElementById('title').textContent = t().title;
+  langBtn.textContent = t().switchTo;
+  progress.replaceChildren(...Array.from({ length: DONE_PAGE }, (_, i) => el('span', { class: i <= page ? 'on' : '' })));
 }
+
+langBtn.onclick = () => {
+  state.lang = state.lang === 'zh' ? 'en' : 'zh';
+  saveDraft();
+  go(page, false);
+};
 
 function nav(onNext, nextText, showBack = true) {
   const msg = el('div', { class: 'msg', role: 'alert', id: 'msg' });
-  const back = el('button', { type: 'button', class: 'secondary', text: '上一頁' });
+  const back = el('button', { type: 'button', class: 'secondary', text: t().back });
   back.onclick = () => go(page - 1);
-  const next = el('button', { type: 'button', id: 'next', text: nextText || '下一頁' });
+  const next = el('button', { type: 'button', id: 'next', text: nextText || t().next });
   next.onclick = onNext;
   return [el('div', { class: 'nav' }, showBack ? back : null, next), msg];
 }
 
 function setMsg(text) { const m = document.getElementById('msg'); if (m) m.textContent = text || ''; }
 
-// Personal links carry the participant ID (?p=12), so nobody has to remember it.
-const LINK_PID = (() => {
-  try {
-    const v = toAsciiDigits(new URLSearchParams(location.search).get('p') || '').trim();
-    return /^[0-9]{1,6}$/.test(v) ? v : '';
-  } catch (e) { return ''; }
-})();
-
+// ---------------------------------------------------------------- pages
 function renderIntro() {
-  // Personal link -> ID is known. Generic link -> ask for a name; the researcher
-  // maps names to IDs afterwards and then deletes the names.
-  state.pid = LINK_PID;
   const name = el('input', { type: 'text', autocomplete: 'name', id: 'name', maxlength: '40' });
   name.value = state.name || '';
   name.oninput = () => { state.name = name.value; saveDraft(); };
   const idCard = LINK_PID
     ? el('div', { class: 'card' },
-        el('div', { class: 'q', text: '你的受試者編號：' + LINK_PID }),
-        el('p', { class: 'soft', text: '這是你的專屬連結，已經幫你帶入編號。如果編號不對，請告訴研究人員。' }))
+        el('div', { class: 'q', text: t().linkedId + LINK_PID }),
+        el('p', { class: 'soft', text: t().linkedHelp }))
     : el('div', { class: 'card' },
-        el('label', { class: 'field', for: 'name', text: '你的名字' }),
-        el('p', { class: 'soft', text: '請填參加研究時留給研究人員的名字，讓我們把這份問卷對應到你的研究資料。' }),
+        el('label', { class: 'field', for: 'name', text: t().nameLabel }),
+        el('p', { class: 'soft', text: t().nameHelp }),
         name);
   form.append(
     el('div', { class: 'card' },
-      el('p', { text: '謝謝你參加 WindingDown 研究！這份問卷有三個量表和幾題手機使用情況，共 36 題，大約 6 分鐘。' }),
-      el('p', { text: '答案沒有對錯，請依照你平常的實際狀況作答。' }),
-      el('p', { class: 'soft', text: LINK_PID
-        ? '如果你已經在 App 裡填過這些量表，就不需要再填這份。我們只記錄你的受試者編號，不收集姓名或 email。'
-        : '如果你已經在 App 裡填過這些量表，就不需要再填這份。名字只用來把問卷對應到你的受試者編號，對應完成後就會刪除，不會出現在研究資料或論文中。' })),
+      el('p', { text: t().intro1 }),
+      el('p', { text: t().intro2 }),
+      el('p', { class: 'soft', text: LINK_PID ? t().introLinked : t().introNamed })),
     idCard,
     ...nav(() => {
-      if (!LINK_PID && !(state.name || '').trim()) { setMsg('請填你的名字'); name.focus(); return; }
+      if (!LINK_PID && !(state.name || '').trim()) { setMsg(t().nameMissing); name.focus(); return; }
       go(1);
-    }, '開始', false));
+    }, t().start, false));
 }
 
 function renderScale(scale) {
-  form.append(el('h2', { text: scale.title }), el('p', { class: 'soft', text: scale.help }));
-  scale.items.forEach((text, i) => {
+  const s = scale[state.lang];
+  form.append(el('h2', { text: s.title }), el('p', { class: 'soft', text: s.help }));
+  s.items.forEach((item, i) => {
     const key = scale.key + '_' + (i + 1);
-    const opts = el('div', { class: 'opts n' + scale.labels.length, role: 'radiogroup', 'aria-labelledby': key + '_q' });
-    scale.labels.forEach((label, j) => {
+    const labels = itemLabels(scale, i);
+    const opts = el('div', { class: 'opts n' + labels.length, role: 'radiogroup', 'aria-labelledby': key + '_q' });
+    labels.forEach((label, j) => {
       const input = el('input', { type: 'radio', name: key, value: String(j + 1), id: key + '_' + (j + 1) });
       if (state.answers[key] === j + 1) input.checked = true;
       input.onchange = () => {
@@ -267,13 +411,13 @@ function renderScale(scale) {
       opts.append(el('label', { class: 'opt', for: key + '_' + (j + 1) }, input, face));
     });
     form.append(el('div', { class: 'card', id: 'card_' + key },
-      el('div', { class: 'q', id: key + '_q', text: (i + 1) + '. ' + text }), opts));
+      el('div', { class: 'q', id: key + '_q', text: (i + 1) + '. ' + itemText(item) }), opts));
   });
   form.append(...nav(() => {
-    const missing = scale.items.map((_, i) => scale.key + '_' + (i + 1)).filter(k => !state.answers[k]);
+    const missing = s.items.map((_, i) => scale.key + '_' + (i + 1)).filter(k => !state.answers[k]);
     missing.forEach(k => document.getElementById('card_' + k).classList.add('missing'));
     if (missing.length) {
-      setMsg('還有 ' + missing.length + ' 題沒有填');
+      setMsg(t().missing(missing.length));
       document.getElementById('card_' + missing[0]).scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
@@ -288,70 +432,59 @@ function renderUsage() {
     input.oninput = () => { state[id] = input.value; saveDraft(); };
     return el('div', { class: 'card', id: 'card_' + id },
       el('label', { class: 'field', for: id, text: title }),
-      el('p', { class: 'soft', text: '請填分鐘數，例如 3 小時 20 分鐘填 200' }), input);
+      el('p', { class: 'soft', text: t().minutesHelp }), input);
   };
   const checks = el('div', { class: 'checks' });
-  DEVICES.forEach((d, i) => {
-    const box = el('input', { type: 'checkbox', id: 'dev_' + i, value: d });
-    box.checked = state.devices.includes(d);
+  DEVICE_VALUES.forEach((value, i) => {
+    const box = el('input', { type: 'checkbox', id: 'dev_' + i, value });
+    box.checked = state.devices.includes(value);
     box.onchange = () => {
-      state.devices = box.checked ? [...state.devices, d] : state.devices.filter(x => x !== d);
+      state.devices = box.checked ? [...state.devices, value] : state.devices.filter(x => x !== value);
       saveDraft();
     };
-    checks.append(el('label', { for: 'dev_' + i }, box, document.createTextNode(d)));
+    checks.append(el('label', { for: 'dev_' + i }, box, document.createTextNode(t().deviceList[i])));
   });
-  const other = el('input', { type: 'text', id: 'device_other', maxlength: '60', placeholder: '其他（選填）' });
+  const other = el('input', { type: 'text', id: 'device_other', maxlength: '60', placeholder: t().other });
   other.value = state.device_other;
   other.oninput = () => { state.device_other = other.value; saveDraft(); };
 
   form.append(
-    el('h2', { text: '最後：手機使用情況' }),
-    el('p', { class: 'soft', text: '建議打開手機的「數位健康」（Android）或「螢幕使用時間」（iPhone），看最近一週的每日平均來填。' }),
-    num('phone_min', '平均每天使用手機多久？'),
-    num('social_min', '平均每天在手機上觀看社群媒體內容多久？'),
+    el('h2', { text: t().usageTitle }),
+    el('p', { class: 'soft', text: t().usageHelp }),
+    num('phone_min', t().phone),
+    num('social_min', t().social),
     el('div', { class: 'card', id: 'card_devices' },
-      el('div', { class: 'q', text: '你每天例行使用的裝置有哪些？（可複選）' }), checks, other),
-    ...nav(submit, '送出'));
+      el('div', { class: 'q', text: t().devices }), checks, other),
+    ...nav(submit, t().submit));
 }
 
 function renderDone() {
   form.append(el('div', { class: 'card done' },
     el('div', { class: 'big', text: '🌙' }),
-    el('h2', { text: '已收到，謝謝你！' }),
-    el('p', { class: 'soft', text: '可以關閉這個頁面了。' })));
+    el('h2', { text: t().doneTitle }),
+    el('p', { class: 'soft', text: t().doneHelp })));
 }
 
-function go(n) {
-  page = Math.max(0, Math.min(PAGE_COUNT, n));
+function go(n, toTop = true) {
+  page = Math.max(0, Math.min(DONE_PAGE, n));
   form.replaceChildren();
-  renderProgress();
+  renderChrome();
   if (page === 0) renderIntro();
   else if (page <= SCALES.length) renderScale(SCALES[page - 1]);
-  else if (page === 4) renderUsage();
+  else if (page === USAGE_PAGE) renderUsage();
   else renderDone();
-  window.scrollTo(0, 0);
+  if (toTop) window.scrollTo(0, 0);
 }
 
 // ---------------------------------------------------------------- scoring & submit
-function toAsciiDigits(s) {
-  // Same normalisation as the app: any Unicode digit -> ASCII.
-  return s.replace(/\p{Nd}/gu, d => {
-    const v = parseInt(d, 10);
-    if (!Number.isNaN(v)) return String(v);
-    const code = d.codePointAt(0);
-    for (const base of [0x0660, 0x06F0, 0x0966, 0xFF10]) if (code >= base && code <= base + 9) return String(code - base);
-    return d;
-  });
-}
-
 function scaleRow(scale, submittedAt) {
   const answers = {};
   let total = 0;
-  scale.items.forEach((_, i) => {
+  scale.zh.items.forEach((_, i) => {
     const k = scale.key + '_' + (i + 1);
     const raw = state.answers[k];
     answers[k] = raw;
-    total += scale.reverse.includes(i + 1) ? (scale.labels.length + 1 - raw) : raw;
+    if (!scale.noTotal) total += scale.reverse.includes(i + 1) ? (scale.zh.labels.length + 1 - raw) : raw;
   });
   return row(scale.key, answers, total, submittedAt);
 }
@@ -362,7 +495,8 @@ function row(scale, answers, total, submittedAt) {
     participant_id: LINK_PID || null,
     participant_name: LINK_PID ? null : state.name.trim().slice(0, 40),
     scale, answers, total,
-    form_version: FORM_VERSION,
+    // Language is part of the version so zh and en submissions can be told apart.
+    form_version: FORM_VERSION + '/' + state.lang,
     user_agent: navigator.userAgent.slice(0, 400),
     submitted_at: submittedAt,
   };
@@ -381,10 +515,10 @@ async function submit() {
   if (!(s >= 0 && s <= 1440)) bad.push('card_social_min');
   if (!state.devices.length && !state.device_other.trim()) bad.push('card_devices');
   document.querySelectorAll('.card').forEach(c => c.classList.toggle('missing', bad.includes(c.id)));
-  if (bad.length) { setMsg('請完成標紅的題目（分鐘數 0 到 1440）'); return; }
+  if (bad.length) { setMsg(t().usageMissing); return; }
 
   const btn = document.getElementById('next');
-  btn.disabled = true; btn.textContent = '送出中…'; setMsg('');
+  btn.disabled = true; btn.textContent = t().sending; setMsg('');
   const at = new Date().toISOString();
   const rows = SCALES.map(sc => scaleRow(sc, at));
   rows.push(row('usage', {
@@ -406,17 +540,17 @@ async function submit() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     clearDraft();
     state.name = '';
-    go(5);
+    go(DONE_PAGE);
   } catch (e) {
-    btn.disabled = false; btn.textContent = '再試一次';
-    const offline = e instanceof TypeError;  // fetch throws TypeError when the network is down
-    setMsg(offline
-      ? '送出失敗：連不上網路。你的答案還在，請確認網路後再按一次。'
-      : '送出失敗（' + e.message + '）。你的答案還在，請稍後再試；一直失敗的話請截圖告訴研究人員。');
+    btn.disabled = false; btn.textContent = t().retry;
+    setMsg(e instanceof TypeError ? t().offline : t().failed(e.message));  // fetch throws TypeError when offline
   }
 }
 
+// ---------------------------------------------------------------- start
 loadDraft();
+if (PARAMS.get('lang') === 'en' || PARAMS.get('lang') === 'zh') state.lang = PARAMS.get('lang');
+if (!UI[state.lang]) state.lang = 'zh';
 go(0);
 </script>
 </body>
