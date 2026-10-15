@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>WindingDown 補填問卷</title>
+<style>
+  :root {
+    --bg: #b6a3d4;
+    --ink: #2e2342;
+    --ink-soft: #5a4a78;
+    --card: #fbf8ff;
+    --yellow: #f6c945;
+    --pink: #f3a8c0;
+    --mint: #8fd0c4;
+    --error: #b3261e;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    line-height: 1.55;
+  }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 8px 0 4px; font-weight: 900; }
+  h2 { font-size: 1.3rem; margin: 0 0 6px; font-weight: 900; }
+  p { margin: 0 0 12px; }
+  .soft { color: var(--ink-soft); font-size: 0.95rem; }
+  .progress { display: flex; gap: 6px; margin: 12px 0 20px; }
+  .progress span { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,.45); border: 1.5px solid var(--ink); }
+  .progress span.on { background: var(--yellow); }
+  .card {
+    background: var(--card); border: 2px solid var(--ink); border-radius: 16px;
+    padding: 16px; margin-bottom: 14px;
+  }
+  .card.missing { border-color: var(--error); box-shadow: 0 0 0 2px var(--error) inset; }
+  .q { font-weight: 700; margin-bottom: 10px; }
+  .opts { display: grid; gap: 6px; }
+  .opts.n4 { grid-template-columns: repeat(4, 1fr); }
+  .opts.n5 { grid-template-columns: repeat(5, 1fr); }
+  .opt input { position: absolute; opacity: 0; pointer-events: none; }
+  .opt span {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 64px; padding: 6px 2px; text-align: center; font-size: 0.78rem; line-height: 1.25;
+    border: 1.5px solid var(--ink); border-radius: 10px; background: #fff; cursor: pointer;
+  }
+  .opt span b { font-size: 1.05rem; }
+  .opt input:checked + span { background: var(--yellow); font-weight: 700; }
+  .opt input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 2px; }
+  label.field { display: block; font-weight: 700; margin-bottom: 6px; }
+  input[type=text], input[type=number] {
+    width: 100%; font-size: 1.1rem; padding: 10px 12px; border: 2px solid var(--ink);
+    border-radius: 10px; background: #fff; color: var(--ink);
+  }
+  .checks label { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 1rem; }
+  .checks input { width: 20px; height: 20px; accent-color: var(--ink); }
+  .nav { display: flex; gap: 10px; margin-top: 18px; }
+  button {
+    flex: 1; font-size: 1.05rem; font-weight: 800; padding: 14px; border-radius: 14px;
+    border: 2px solid var(--ink); background: var(--yellow); color: var(--ink); cursor: pointer;
+  }
+  button.secondary { background: #fff; flex: 0 0 34%; }
+  button:disabled { opacity: .55; cursor: default; }
+  .msg { color: var(--error); font-weight: 700; margin-top: 12px; min-height: 1.5em; }
+  .done { text-align: center; padding: 40px 8px; }
+  .done .big { font-size: 3rem; }
+  [hidden] { display: none !important; }
+  /* Phones: one full-width row per option so labels stay on one line and targets are large. */
+  @media (max-width: 560px) {
+    .opts.n4, .opts.n5 { grid-template-columns: 1fr; }
+    .opt span {
+      flex-direction: row; justify-content: flex-start; gap: 12px;
+      min-height: 46px; padding: 8px 14px; font-size: 1rem; text-align: left;
+    }
+    .opt span b {
+      flex: 0 0 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--ink);
+      display: flex; align-items: center; justify-content: center; font-size: 0.95rem; background: #fff;
+    }
+    .opt input:checked + span b { background: var(--ink); color: #fff; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>WindingDown 補填問卷</h1>
+  <div class="progress" id="progress" aria-hidden="true"></div>
+  <form id="form" novalidate></form>
+</main>
+
+<script>
+// ---------------------------------------------------------------- config
+// Publishable key: write-only to drift_scale_web (RLS insert-only, no read).
+const SUPABASE_URL = 'https://pcettssnalxoiancdwcv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_WldlVemvmnrcQld0r4n56g_7a5kjgyg';
+const TABLE = 'drift_scale_web';
+const FORM_VERSION = 'web-2026-10-15';
+const DRAFT_KEY = 'wd_scales_draft_v1';
+
+// ---------------------------------------------------------------- instruments
+// Item text is identical to the app's res/values/strings.xml; change both together.
+const SCALES = [
+  {
+    key: 'bscs', title: '第一部分：自我控制量表',
+    help: '以下句子有多像你？依照你平常的樣子作答。',
+    labels: ['完全不像我', '不太像我', '普通', '有點像我', '非常像我'],
+    reverse: [2, 3, 4, 5, 7, 9, 10, 12, 13],
+    items: [
+      '我很擅長抗拒誘惑。',
+      '我很難戒掉壞習慣。',
+      '我很懶惰。',
+      '我會說出不恰當的話。',
+      '只要好玩，我會做一些對自己不好的事。',
+      '我會拒絕對自己不好的事。',
+      '我希望自己能更自律。',
+      '別人會說我非常自律。',
+      '享樂有時會讓我無法把事情做完。',
+      '我很難專心。',
+      '我能有效地朝長期目標努力。',
+      '有時即使知道不對，我還是無法阻止自己去做某件事。',
+      '我常常沒有想清楚各種可能，就直接行動。',
+    ],
+  },
+  {
+    key: 'spaisf', title: '第二部分：手機使用量表',
+    help: '下面是一些有關個人使用智慧型手機的描述，請評估您目前的實際情形是否與句中的描述一致。數字越大，表示句中所描述的情形與目前您實際的情形愈符合。',
+    labels: ['極不符合', '不符合', '符合', '非常符合'],
+    reverse: [],
+    items: [
+      '雖然使用手機對我的日常人際關係造成負面影響，我仍未減少使用手機',
+      '使用手機所花的時間或金錢，常常超過自己本來預定的程度',
+      '我曾試過想花較少的時間在使用手機上，但卻無法做到',
+      '我曾因長時間使用手機而眼睛酸澀，肌肉痠痛，或有其他身體不適',
+      '我習慣睡前使用手機，而且因此減少睡眠時間或睡眠品質變差',
+      '使用智慧型手機對我的學業或工作已造成一些負面的影響',
+      '如果手機突然被沒收，或是突然被限制不能用手機，會覺得很難受',
+      '我只要有一段時間沒有用手機，就會覺得心裡不舒服',
+      '我發現自己使用手機的時間越來越長',
+      '與三個月前比起來，平均而言我每週使用手機的時間比以前增加許多',
+    ],
+  },
+  {
+    key: 'fomo', title: '第三部分：人際與資訊量表',
+    help: '以下描述與你的日常經驗有關，請依照每句話符合你實際狀況的程度作答。',
+    labels: ['完全不符合我', '有點符合我', '中等符合我', '很符合我', '非常符合我'],
+    reverse: [],
+    items: [
+      '我擔心別人擁有比我更精彩、更有收穫的經驗。',
+      '我擔心我的朋友擁有比我更精彩、更有收穫的經驗。',
+      '發現朋友們沒有我也玩得很開心時，我會感到擔心。',
+      '不知道朋友們在做什麼時，我會感到焦慮。',
+      '能聽懂朋友之間的「內梗」，對我來說很重要。',
+      '有時候我會懷疑，自己是不是花太多時間在掌握周遭發生的事。',
+      '錯過和朋友見面的機會，會讓我很在意。',
+      '當我玩得很開心時，把細節分享到網路上（例如發限動或更新動態）對我來說很重要。',
+      '錯過已經約好的聚會，會讓我很在意。',
+      '去度假時，我還是會持續關注朋友們在做什麼。',
+    ],
+  },
+];
+const DEVICES = ['手機', '平板', '筆電', '桌上型電腦', '電視或串流裝置'];
+
+// Pages: 0 intro, 1..3 scales, 4 usage, 5 done.
+const PAGE_COUNT = 5;
+let page = 0;
+const state = { pid: '', answers: {}, phone_min: '', social_min: '', devices: [], device_other: '' };
+
+// ---------------------------------------------------------------- draft (per-device convenience only)
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (raw) Object.assign(state, JSON.parse(raw));
+  } catch (e) { /* storage unavailable: start fresh */ }
+}
+function saveDraft() {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state)); } catch (e) { /* ignore */ }
+}
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY); } catch (e) { /* ignore */ }
+}
+
+// ---------------------------------------------------------------- rendering
+const form = document.getElementById('form');
+const progress = document.getElementById('progress');
+
+function el(tag, attrs, ...children) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === 'class') n.className = v;
+    else if (k === 'text') n.textContent = v;
+    else n.setAttribute(k, v);
+  }
+  children.forEach(c => c && n.append(c));
+  return n;
+}
+
+function renderProgress() {
+  progress.replaceChildren(...Array.from({ length: PAGE_COUNT }, (_, i) =>
+    el('span', { class: i <= page ? 'on' : '' })));
+}
+
+function nav(onNext, nextText, showBack = true) {
+  const msg = el('div', { class: 'msg', role: 'alert', id: 'msg' });
+  const back = el('button', { type: 'button', class: 'secondary', text: '上一頁' });
+  back.onclick = () => go(page - 1);
+  const next = el('button', { type: 'button', id: 'next', text: nextText || '下一頁' });
+  next.onclick = onNext;
+  return [el('div', { class: 'nav' }, showBack ? back : null, next), msg];
+}
+
+function setMsg(text) { const m = document.getElementById('msg'); if (m) m.textContent = text || ''; }
+
+function renderIntro() {
+  const pid = el('input', { type: 'text', inputmode: 'numeric', autocomplete: 'off', id: 'pid', maxlength: '6' });
+  pid.value = state.pid;
+  pid.oninput = () => { state.pid = toAsciiDigits(pid.value).trim(); saveDraft(); };
+  form.append(
+    el('div', { class: 'card' },
+      el('p', { text: '謝謝你參加 WindingDown 研究！這份問卷有三個量表和幾題手機使用情況，共 36 題，大約 6 分鐘。' }),
+      el('p', { text: '答案沒有對錯，請依照你平常的實際狀況作答。' }),
+      el('p', { class: 'soft', text: '如果你已經在 App 裡填過這些量表，就不需要再填這份。我們只記錄你的受試者編號，不收集姓名或 email。' })),
+    el('div', { class: 'card' },
+      el('label', { class: 'field', for: 'pid', text: '受試者編號' }),
+      el('p', { class: 'soft', text: '請填研究人員給你的編號（只有數字），和 App 裡的編號相同。' }),
+      pid),
+    ...nav(() => {
+      if (!/^[0-9]{1,6}$/.test(state.pid)) { setMsg('請填受試者編號（只有數字）'); pid.focus(); return; }
+      go(1);
+    }, '開始', false));
+}
+
+function renderScale(scale) {
+  form.append(el('h2', { text: scale.title }), el('p', { class: 'soft', text: scale.help }));
+  scale.items.forEach((text, i) => {
+    const key = scale.key + '_' + (i + 1);
+    const opts = el('div', { class: 'opts n' + scale.labels.length, role: 'radiogroup', 'aria-labelledby': key + '_q' });
+    scale.labels.forEach((label, j) => {
+      const input = el('input', { type: 'radio', name: key, value: String(j + 1), id: key + '_' + (j + 1) });
+      if (state.answers[key] === j + 1) input.checked = true;
+      input.onchange = () => {
+        state.answers[key] = j + 1;
+        document.getElementById('card_' + key).classList.remove('missing');
+        saveDraft();
+      };
+      const face = el('span', {}, el('b', { text: String(j + 1) }), document.createTextNode(label));
+      opts.append(el('label', { class: 'opt', for: key + '_' + (j + 1) }, input, face));
+    });
+    form.append(el('div', { class: 'card', id: 'card_' + key },
+      el('div', { class: 'q', id: key + '_q', text: (i + 1) + '. ' + text }), opts));
+  });
+  form.append(...nav(() => {
+    const missing = scale.items.map((_, i) => scale.key + '_' + (i + 1)).filter(k => !state.answers[k]);
+    missing.forEach(k => document.getElementById('card_' + k).classList.add('missing'));
+    if (missing.length) {
+      setMsg('還有 ' + missing.length + ' 題沒有填');
+      document.getElementById('card_' + missing[0]).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+    go(page + 1);
+  }));
+}
+
+function renderUsage() {
+  const num = (id, title) => {
+    const input = el('input', { type: 'number', inputmode: 'numeric', min: '0', max: '1440', id });
+    input.value = state[id];
+    input.oninput = () => { state[id] = input.value; saveDraft(); };
+    return el('div', { class: 'card', id: 'card_' + id },
+      el('label', { class: 'field', for: id, text: title }),
+      el('p', { class: 'soft', text: '請填分鐘數，例如 3 小時 20 分鐘填 200' }), input);
+  };
+  const checks = el('div', { class: 'checks' });
+  DEVICES.forEach((d, i) => {
+    const box = el('input', { type: 'checkbox', id: 'dev_' + i, value: d });
+    box.checked = state.devices.includes(d);
+    box.onchange = () => {
+      state.devices = box.checked ? [...state.devices, d] : state.devices.filter(x => x !== d);
+      saveDraft();
+    };
+    checks.append(el('label', { for: 'dev_' + i }, box, document.createTextNode(d)));
+  });
+  const other = el('input', { type: 'text', id: 'device_other', maxlength: '60', placeholder: '其他（選填）' });
+  other.value = state.device_other;
+  other.oninput = () => { state.device_other = other.value; saveDraft(); };
+
+  form.append(
+    el('h2', { text: '最後：手機使用情況' }),
+    el('p', { class: 'soft', text: '建議打開手機的「數位健康」（Android）或「螢幕使用時間」（iPhone），看最近一週的每日平均來填。' }),
+    num('phone_min', '平均每天使用手機多久？'),
+    num('social_min', '平均每天在手機上觀看社群媒體內容多久？'),
+    el('div', { class: 'card', id: 'card_devices' },
+      el('div', { class: 'q', text: '你每天例行使用的裝置有哪些？（可複選）' }), checks, other),
+    ...nav(submit, '送出'));
+}
+
+function renderDone() {
+  form.append(el('div', { class: 'card done' },
+    el('div', { class: 'big', text: '🌙' }),
+    el('h2', { text: '已收到，謝謝你！' }),
+    el('p', { class: 'soft', text: '可以關閉這個頁面了。' })));
+}
+
+function go(n) {
+  page = Math.max(0, Math.min(PAGE_COUNT, n));
+  form.replaceChildren();
+  renderProgress();
+  if (page === 0) renderIntro();
+  else if (page <= SCALES.length) renderScale(SCALES[page - 1]);
+  else if (page === 4) renderUsage();
+  else renderDone();
+  window.scrollTo(0, 0);
+}
+
+// ---------------------------------------------------------------- scoring & submit
+function toAsciiDigits(s) {
+  // Same normalisation as the app: any Unicode digit -> ASCII.
+  return s.replace(/\p{Nd}/gu, d => {
+    const v = parseInt(d, 10);
+    if (!Number.isNaN(v)) return String(v);
+    const code = d.codePointAt(0);
+    for (const base of [0x0660, 0x06F0, 0x0966, 0xFF10]) if (code >= base && code <= base + 9) return String(code - base);
+    return d;
+  });
+}
+
+function scaleRow(scale, submittedAt) {
+  const answers = {};
+  let total = 0;
+  scale.items.forEach((_, i) => {
+    const k = scale.key + '_' + (i + 1);
+    const raw = state.answers[k];
+    answers[k] = raw;
+    total += scale.reverse.includes(i + 1) ? (scale.labels.length + 1 - raw) : raw;
+  });
+  return row(scale.key, answers, total, submittedAt);
+}
+
+function row(scale, answers, total, submittedAt) {
+  return {
+    submission_uid: uuid(),
+    participant_id: state.pid,
+    scale, answers, total,
+    form_version: FORM_VERSION,
+    user_agent: navigator.userAgent.slice(0, 400),
+    submitted_at: submittedAt,
+  };
+}
+
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+}
+
+async function submit() {
+  const p = parseInt(state.phone_min, 10), s = parseInt(state.social_min, 10);
+  const bad = [];
+  if (!(p >= 0 && p <= 1440)) bad.push('card_phone_min');
+  if (!(s >= 0 && s <= 1440)) bad.push('card_social_min');
+  if (!state.devices.length && !state.device_other.trim()) bad.push('card_devices');
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('missing', bad.includes(c.id)));
+  if (bad.length) { setMsg('請完成標紅的題目（分鐘數 0 到 1440）'); return; }
+
+  const btn = document.getElementById('next');
+  btn.disabled = true; btn.textContent = '送出中…'; setMsg('');
+  const at = new Date().toISOString();
+  const rows = SCALES.map(sc => scaleRow(sc, at));
+  rows.push(row('usage', {
+    phone_min: p, social_min: s, devices: state.devices,
+    device_other: state.device_other.trim().slice(0, 60),
+  }, 0, at));
+
+  try {
+    const res = await fetch(SUPABASE_URL.replace(/\/$/, '') + '/rest/v1/' + TABLE, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify(rows),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    clearDraft();
+    go(5);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = '再試一次';
+    setMsg('送出失敗（' + e.message + '）。你的答案還在，請檢查網路後再按一次。');
+  }
+}
+
+loadDraft();
+go(0);
+</script>
+</body>
+</html>
